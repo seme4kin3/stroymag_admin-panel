@@ -7,8 +7,8 @@ import type {
 } from '../models/product';
 
 export const ProductsApi = {
-  getPaged: (page = 1, pageSize = 50) =>
-    http.get<ProductAdminPagedResponse>('products', { params: { page, pageSize } }),
+  getPaged: (page = 1, pageSize = 50, name?: string, article?: string, barcode?: string) =>
+    http.get<ProductAdminPagedResponse>('products', { params: { page, pageSize, name, article, barcode } }),
 
   getById: (id: string) => http.get<ProductAdminListItemDto>(`products/${id}`),
 

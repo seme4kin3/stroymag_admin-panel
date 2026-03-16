@@ -61,7 +61,6 @@ function uniqByAttributeDefinitionId(
 
 export default function CategoryForm({ open, onClose, onSaved }: CategoryFormProps) {
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
   const [parent, setParent] = useState<CategoryDto | null>(null);
 
   // inherited (read-only)
@@ -88,7 +87,6 @@ export default function CategoryForm({ open, onClose, onSaved }: CategoryFormPro
 
   const reset = () => {
     setName('');
-    setSlug('');
     setParent(null);
     setInheritedAttributes([]);
     setOwnAttributes([]);
@@ -196,7 +194,7 @@ export default function CategoryForm({ open, onClose, onSaved }: CategoryFormPro
 
     const payload: CreateCategory = {
       name,
-      slug: slug || null,
+      slug: null,
       parentId: parent ? parent.id : null,
       attributes: allAttributes,
     };
@@ -227,13 +225,6 @@ export default function CategoryForm({ open, onClose, onSaved }: CategoryFormPro
               onChange={(e) => setName(e.target.value)}
             />
 
-            <TextField
-              label="Slug"
-              fullWidth
-              margin="normal"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-            />
           </Stack>
           {/* ✅ compact drag&drop */}
           <Box mt={1}>

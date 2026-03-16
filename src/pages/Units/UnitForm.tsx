@@ -39,7 +39,7 @@ export default function UnitForm({ open, onClose, onSaved }: UnitFormProps) {
 
       <DialogContent>
         <TextField
-          label="Наименование полное"
+          label="Наименование"
           fullWidth
           margin="normal"
           value={name}
@@ -47,7 +47,7 @@ export default function UnitForm({ open, onClose, onSaved }: UnitFormProps) {
         />
 
         <TextField
-          label="Наименование"
+          label="Обозначение"
           fullWidth
           margin="normal"
           value={symbol}

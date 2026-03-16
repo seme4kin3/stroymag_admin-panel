@@ -40,7 +40,6 @@ export default function CategorySelectDialog({
 
   const columns: GridColDef[] = [
     { field: 'name', headerName: 'Название', flex: 1 },
-    { field: 'slug', headerName: 'Slug', flex: 1 },
   ];
 
   const handleRowDoubleClick = (params: GridRowParams<CategoryDto>) => {

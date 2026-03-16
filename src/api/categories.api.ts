@@ -17,9 +17,9 @@ function buildCreateCategoryFormData(data: CreateCategory, image?: File | null) 
 }
 
 export const CategoriesApi = {
-  getPaged: (page = 1, pageSize = 50) =>
+  getPaged: (page = 1, pageSize = 50, name?: string) =>
     http.get<{ items: CategoryDto[]; total: number }>('categories', {
-      params: { page, pageSize },
+      params: { page, pageSize, name },
     }),
 
   getDetails: (id: string) => http.get<CategoryDetailsDto>(`categories/${id}`),

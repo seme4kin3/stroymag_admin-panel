@@ -30,10 +30,10 @@ interface AttributeDetailsDialogProps {
 
 // те же опции, что и в форме создания
 const dataTypeOptions: { value: AttributeDataType; label: string }[] = [
-  { value: 0, label: 'String' },
-  { value: 1, label: 'Integer' },
-  { value: 2, label: 'Decimal' },
-  { value: 3, label: 'Boolean' },
+  { value: 0, label: 'Строка' },
+  { value: 1, label: 'Целое число' },
+  { value: 2, label: 'Число с точкой' },
+  { value: 3, label: 'Логическое' },
 ];
 
 export default function AttributeDetailsDialog({
@@ -113,7 +113,7 @@ export default function AttributeDetailsDialog({
               fullWidth
               value={isEditing ? draftName : attribute.name}
               onChange={(e) => setDraftName(e.target.value)}
-              disabled={!isEditing}
+              InputProps={{ readOnly: !isEditing }}
             />
 
             <TextField

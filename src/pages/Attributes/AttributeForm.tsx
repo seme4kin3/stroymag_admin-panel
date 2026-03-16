@@ -22,26 +22,23 @@ interface AttributeFormProps {
 
 // отображаемые опции для enum'а
 const dataTypeOptions: { value: AttributeDataType; label: string }[] = [
-  { value: 0, label: 'String' },
-  { value: 1, label: 'Integer' },
-  { value: 2, label: 'Decimal' },
-  { value: 3, label: 'Boolean' },
+  { value: 0, label: 'Строка' },
+  { value: 1, label: 'Целое число' },
+  { value: 2, label: 'Число с точкой' },
+  { value: 3, label: 'Логическое' },
 ];
 
 export default function AttributeForm({ open, onClose, onSaved }: AttributeFormProps) {
   const [name, setName] = useState('');
-  const [keyValue, setKeyValue] = useState('');
   const [dataType, setDataType] = useState<AttributeDataType>(0);
 
   const handleSave = async () => {
     await AttributesApi.create({
       name,
-      key: keyValue,
-      dataType, // <- отправляем число 0..3
+      dataType, // отправляем число 0..3
     });
 
     setName('');
-    setKeyValue('');
     setDataType(0);
 
     await onSaved();
@@ -50,7 +47,6 @@ export default function AttributeForm({ open, onClose, onSaved }: AttributeFormP
 
   const handleClose = () => {
     setName('');
-    setKeyValue('');
     setDataType(0);
     onClose();
   };
@@ -66,15 +62,6 @@ export default function AttributeForm({ open, onClose, onSaved }: AttributeFormP
           margin="normal"
           value={name}
           onChange={(e) => setName(e.target.value)}
-        />
-
-        <TextField
-          label="Ключ"
-          fullWidth
-          margin="normal"
-          value={keyValue}
-          onChange={(e) => setKeyValue(e.target.value)}
-          helperText="Служебный ключ (латиница, без пробелов)"
         />
 
         <FormControl fullWidth margin="normal">

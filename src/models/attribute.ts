@@ -13,6 +13,6 @@ export interface AttributeDto {
 
 export interface CreateAttribute {
   name: string;
-  key: string;
+  key?: string | null;
   dataType: AttributeDataType;
 }

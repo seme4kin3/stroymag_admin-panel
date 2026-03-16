@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, Box, IconButton } from '@mui/material';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Box,
+  IconButton,
+} from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { DataGrid } from '@mui/x-data-grid';
-import type { GridColDef } from '@mui/x-data-grid';
+import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
 
 import { BrandsApi } from '../../api/brands.api';
 import type { Brand } from '../../models/brand';
@@ -19,6 +27,7 @@ function hasRow(x: unknown): x is { row: Brand } {
 
 export default function BrandSelectDialog({ open, onClose, onSelect }: BrandSelectDialogProps) {
   const [items, setItems] = useState<Brand[]>([]);
+  const [selected, setSelected] = useState<Brand | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -27,7 +36,10 @@ export default function BrandSelectDialog({ open, onClose, onSelect }: BrandSele
 
     async function load() {
       const res = await BrandsApi.getPaged(1, 1000);
-      if (!ignore) setItems(res.data.items);
+      if (!ignore) {
+        setItems(res.data.items);
+        setSelected(null);
+      }
     }
 
     void load();
@@ -45,6 +57,16 @@ export default function BrandSelectDialog({ open, onClose, onSelect }: BrandSele
   const handleRowDoubleClick = (params: unknown) => {
     if (!hasRow(params)) return;
     onSelect(params.row);
+    onClose();
+  };
+
+  const handleRowClick = (params: GridRowParams<Brand>) => {
+    setSelected(params.row as Brand);
+  };
+
+  const handleConfirm = () => {
+    if (!selected) return;
+    onSelect(selected);
     onClose();
   };
 
@@ -67,9 +89,16 @@ export default function BrandSelectDialog({ open, onClose, onSelect }: BrandSele
             columns={columns}
             getRowId={(r) => r.id}
             onRowDoubleClick={handleRowDoubleClick}
+            onRowClick={handleRowClick}
           />
         </Box>
       </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Отмена</Button>
+        <Button variant="contained" onClick={handleConfirm} disabled={!selected}>
+          Выбрать
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }

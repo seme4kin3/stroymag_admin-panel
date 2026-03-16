@@ -375,7 +375,7 @@ export default function CategoryDetailsDialog({
               fullWidth
               value={isEditing ? draftSlug : (viewDetails.slug ?? '')}
               onChange={(e) => setDraftSlug(e.target.value)}
-              disabled={!isEditing}
+              InputProps={{ readOnly: !isEditing }}
             />
 
             {/* --- PHOTO DROPZONE --- */}

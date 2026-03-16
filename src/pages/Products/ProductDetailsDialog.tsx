@@ -1,5 +1,4 @@
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -19,7 +18,6 @@ import {
 
 import CloseIcon from '@mui/icons-material/Close';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import RadioButtonCheckedIcon from '@mui/icons-material/RadioButtonChecked';
@@ -103,6 +101,29 @@ type ImageTile =
   | { kind: 'server'; key: string; url: string; isMain: boolean }
   | { kind: 'new'; key: string; url: string; isMain: boolean; tempId: string };
 
+type PersistImageItem =
+  | { kind: 'server'; id: string; url: string }
+  | { kind: 'new'; tempId: string; file: File };
+
+function makeFileNameFromUrl(url: string, fallbackId: string): string {
+  try {
+    const pathname = new URL(url, window.location.origin).pathname;
+    const fromPath = pathname.split('/').filter(Boolean).pop();
+    if (fromPath) return fromPath;
+  } catch {
+    // noop
+  }
+  return `${fallbackId}.jpg`;
+}
+
+async function serverImageToFile(url: string, fallbackId: string): Promise<File> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load image: ${res.status}`);
+  const blob = await res.blob();
+  const fileName = makeFileNameFromUrl(url, fallbackId);
+  return new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+}
+
 export default function ProductDetailsDialog({ open, product, onClose, onChanged }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -144,6 +165,7 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
   const [pendingNewImages, setPendingNewImages] = useState<NewImageDraft[]>([]);
   const [pendingRemoveServerIds, setPendingRemoveServerIds] = useState<Set<string>>(new Set());
   const [pendingMainKey, setPendingMainKey] = useState<string | null>(null); // server:<id> | new:<tempId>
+  const [initialMainKey, setInitialMainKey] = useState<string | null>(null);
   const [isImageBusy, setIsImageBusy] = useState(false);
 
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
@@ -158,6 +180,7 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
     clearPendingPreviews();
     setPendingRemoveServerIds(new Set());
     setPendingMainKey(null);
+    setInitialMainKey(null);
   };
 
   // sync props -> view state (как в категории)
@@ -254,11 +277,11 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
 
   const hasImageDraftChanges = useMemo(() => {
     return (
-      pendingNewImages.length > 0 || pendingRemoveServerIds.size > 0 || pendingMainKey !== null
+      pendingNewImages.length > 0 ||
+      pendingRemoveServerIds.size > 0 ||
+      pendingMainKey !== initialMainKey
     );
-  }, [pendingNewImages.length, pendingRemoveServerIds, pendingMainKey]);
-
-  const hasNewFilesToReplace = pendingNewImages.length > 0;
+  }, [pendingNewImages.length, pendingRemoveServerIds, pendingMainKey, initialMainKey]);
 
   const handleClose = () => {
     setIsEditing(false);
@@ -333,6 +356,7 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
     // image draft reset + main = текущий серверный isPrimary
     resetImageDraft();
     setPendingMainKey(viewMainKey);
+    setInitialMainKey(viewMainKey);
 
     setIsEditing(true);
   };
@@ -372,6 +396,16 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
 
   const handleRemoveTileFromForm = (tile: ImageTile) => {
     if (!isEditing) return;
+    const pickNextMainAfterRemove = (removedKey: string) => {
+      const remainingServerKeys = (viewProduct?.images ?? [])
+        .filter((x) => !pendingRemoveServerIds.has(x.id))
+        .map((x) => `server:${x.id}`)
+        .filter((key) => key !== removedKey);
+      const remainingNewKeys = pendingNewImages
+        .map((x) => `new:${x.tempId}`)
+        .filter((key) => key !== removedKey);
+      return remainingServerKeys[0] ?? remainingNewKeys[0] ?? null;
+    };
 
     // remove new image draft
     if (tile.kind === 'new') {
@@ -382,7 +416,14 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
         const next = prev.filter((x) => x.tempId !== tile.tempId);
 
         // если удалили main — сбросим
-        if (pendingMainKey === tile.key) setPendingMainKey(null);
+        if (pendingMainKey === tile.key) {
+          const remainingServerKeys = (viewProduct?.images ?? [])
+            .filter((x) => !pendingRemoveServerIds.has(x.id))
+            .map((x) => `server:${x.id}`)
+            .filter((key) => key !== tile.key);
+          const remainingNewKeys = next.map((x) => `new:${x.tempId}`);
+          setPendingMainKey(remainingServerKeys[0] ?? remainingNewKeys[0] ?? null);
+        }
         return next;
       });
       return;
@@ -396,7 +437,7 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
       return next;
     });
 
-    if (pendingMainKey === tile.key) setPendingMainKey(null);
+    if (pendingMainKey === tile.key) setPendingMainKey(pickNextMainAfterRemove(tile.key));
   };
 
   const handleSetMain = (tileKey: string) => {
@@ -433,23 +474,44 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
 
     // картинки применяем только при наличии новых файлов (ограничение replaceImages)
     if (hasImageDraftChanges) {
-      if (!hasNewFilesToReplace) {
-        // ничего не делаем — покажем предупреждение выше в UI
-      } else {
-        setIsImageBusy(true);
-        try {
-          const files = pendingNewImages.map((x) => x.file);
-          const mainFlags = pendingNewImages.map((x) => pendingMainKey === `new:${x.tempId}`);
-          await ProductsApi.replaceImages(viewProduct.id, files, mainFlags);
-        } finally {
-          setIsImageBusy(false);
+      setIsImageBusy(true);
+      try {
+        const persisted: PersistImageItem[] = [
+          ...(viewProduct.images ?? [])
+            .filter((x) => !pendingRemoveServerIds.has(x.id))
+            .map((x) => ({ kind: 'server' as const, id: x.id, url: x.url })),
+          ...pendingNewImages.map((x) => ({
+            kind: 'new' as const,
+            tempId: x.tempId,
+            file: x.file,
+          })),
+        ];
+
+        const files: File[] = [];
+        const mainFlags: boolean[] = [];
+
+        for (const item of persisted) {
+          if (item.kind === 'new') {
+            files.push(item.file);
+            mainFlags.push(pendingMainKey === `new:${item.tempId}`);
+            continue;
+          }
+
+          const file = await serverImageToFile(item.url, item.id);
+          files.push(file);
+          mainFlags.push(pendingMainKey === `server:${item.id}`);
         }
+
+        await ProductsApi.replaceImages(viewProduct.id, files, mainFlags);
+      } finally {
+        setIsImageBusy(false);
       }
     }
 
     setIsEditing(false);
     resetImageDraft();
     await onChanged();
+    onClose();
   };
 
   const handleDeleteClick = () => setConfirmOpen(true);
@@ -481,7 +543,7 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
           <Stack spacing={2} mt={1}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField
-                label="SKU"
+                label="Штрихкод"
                 fullWidth
                 value={isEditing ? draftSku : viewProduct.sku}
                 disabled={!isEditing}
@@ -519,14 +581,6 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
               <Typography variant="subtitle2" gutterBottom>
                 Фото товара
               </Typography>
-
-              {isEditing && hasImageDraftChanges && !hasNewFilesToReplace && (
-                <Alert severity="warning" sx={{ mb: 1 }}>
-                  Для применения удаления/главной картинки нужен хотя бы один добавленный файл
-                  (ограничение replaceImages). Сейчас новые файлы не выбраны — изменения картинок не
-                  сохранятся.
-                </Alert>
-              )}
 
               <Stack
                 direction="row"
@@ -580,7 +634,7 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
                           <RadioButtonUncheckedIcon fontSize="small" />
                         )}
                         <Typography variant="caption" sx={{ lineHeight: 1 }}>
-                          main
+                          Main
                         </Typography>
                       </Box>
                     )}
@@ -768,7 +822,7 @@ export default function ProductDetailsDialog({ open, product, onClose, onChanged
                     onChange={(e) => setDraftHasStock(e.target.checked)}
                   />
                 }
-                label="Есть остаток"
+                label="В наличии"
               />
             </Stack>
 
