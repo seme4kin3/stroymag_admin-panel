@@ -7,12 +7,14 @@ import {
   Button,
   Stack,
   IconButton,
+  Alert,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useState } from 'react';
 import { UnitsApi } from '../../api/units.api';
 import type { MeasurementUnit } from '../../models/unit';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { parseApiError } from '../../utils/apiError';
 
 interface UnitDetailsDialogProps {
   open: boolean;
@@ -31,26 +33,31 @@ export default function UnitDetailsDialog({
   const [draftName, setDraftName] = useState('');
   const [draftSymbol, setDraftSymbol] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!unit) return null;
 
   const handleStartEdit = () => {
     setDraftName(unit.name);
     setDraftSymbol(unit.symbol);
+    setErrorMsg(null);
     setIsEditing(true);
   };
 
   const handleCancelEdit = () => {
+    setErrorMsg(null);
     setIsEditing(false);
   };
 
   const handleSave = async () => {
-    await UnitsApi.update(unit.id, {
-      name: draftName,
-      symbol: draftSymbol,
-    });
-    setIsEditing(false);
-    await onChanged();
+    try {
+      await UnitsApi.update(unit.id, { name: draftName, symbol: draftSymbol });
+      setIsEditing(false);
+      setErrorMsg(null);
+      await onChanged();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const handleDeleteClick = () => {
@@ -59,13 +66,18 @@ export default function UnitDetailsDialog({
 
   const handleConfirmDelete = async () => {
     setConfirmOpen(false);
-    await UnitsApi.delete(unit.id);
-    await onChanged();
-    onClose();
+    try {
+      await UnitsApi.delete(unit.id);
+      await onChanged();
+      onClose();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const handleClose = () => {
     setIsEditing(false);
+    setErrorMsg(null);
     onClose();
   };
 
@@ -104,6 +116,7 @@ export default function UnitDetailsDialog({
               disabled={!isEditing}
             />
           </Stack>
+          {errorMsg && <Alert severity="error" sx={{ mt: 2 }}>{errorMsg}</Alert>}
         </DialogContent>
 
         <DialogActions>

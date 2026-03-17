@@ -80,11 +80,7 @@ export default function ProductsPage() {
 
     void fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    appliedFilters,
-    pagination.pageIndex,
-    pagination.pageSize,
-  ]);
+  }, [appliedFilters, pagination.pageIndex, pagination.pageSize]);
 
   const reload = () => {
     setAppliedFilters((prev) => [...prev]);
@@ -94,7 +90,7 @@ export default function ProductsPage() {
     () => [
       { accessorKey: 'sku', header: 'Штрихкод' },
       { accessorKey: 'article', header: 'Артикул' },
-      { accessorKey: 'name', header: 'Название' },
+      { accessorKey: 'name', header: 'Наименование' },
       { accessorKey: 'brandName', header: 'Бренд', enableColumnFilter: false },
       { accessorKey: 'categoryName', header: 'Категория', enableColumnFilter: false },
       { accessorKey: 'unitSymbol', header: 'Ед.', enableColumnFilter: false },

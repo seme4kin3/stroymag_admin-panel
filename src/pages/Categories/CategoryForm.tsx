@@ -14,6 +14,7 @@ import {
   Stack,
   Tooltip,
   Dialog as MuiDialog,
+  Alert,
 } from '@mui/material';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -24,6 +25,7 @@ import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import { useMemo, useRef, useState } from 'react';
 
 import { CategoriesApi } from '../../api/categories.api';
+import { parseApiError } from '../../utils/apiError';
 import CategorySelectDialog from './CategorySelectDialog';
 import AttributeSelectDialog from './AttributeSelectDialog';
 import UnitSelectDialog from '../Attributes/UnitSelectDialog';
@@ -79,6 +81,7 @@ export default function CategoryForm({ open, onClose, onSaved }: CategoryFormPro
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const clearImagePreview = () => {
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
@@ -98,6 +101,7 @@ export default function CategoryForm({ open, onClose, onSaved }: CategoryFormPro
     clearImagePreview();
     setIsDragOver(false);
     setImageViewerOpen(false);
+    setErrorMsg(null);
   };
 
   const handleClose = () => {
@@ -199,12 +203,14 @@ export default function CategoryForm({ open, onClose, onSaved }: CategoryFormPro
       attributes: allAttributes,
     };
 
-    // create + image (multipart)
-    await CategoriesApi.createMultipart(payload, selectedImage);
-
-    reset();
-    await onSaved();
-    onClose();
+    try {
+      await CategoriesApi.createMultipart(payload, selectedImage);
+      reset();
+      await onSaved();
+      onClose();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const imageSrc = imagePreviewUrl || null;
@@ -478,6 +484,7 @@ export default function CategoryForm({ open, onClose, onSaved }: CategoryFormPro
           <Button variant="outlined" startIcon={<AddIcon />} sx={{ mt: 1 }} onClick={addOwnRow}>
             Добавить атрибут
           </Button>
+          {errorMsg && <Alert severity="error" sx={{ mt: 2 }}>{errorMsg}</Alert>}
         </DialogContent>
 
         <DialogActions>

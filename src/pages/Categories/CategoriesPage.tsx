@@ -1,9 +1,12 @@
-// src/pages/Categories/CategoriesPage.tsx
-
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  MaterialReactTable,
+  useMaterialReactTable,
+  type MRT_ColumnDef,
+  type MRT_ColumnFiltersState,
+  type MRT_PaginationState,
+} from 'material-react-table';
 import { Box, Button } from '@mui/material';
-import { DataGrid, getGridStringOperators } from '@mui/x-data-grid';
-import type { GridColDef, GridFilterItem, GridFilterModel, GridPaginationModel } from '@mui/x-data-grid';
 
 import { CategoriesApi } from '../../api/categories.api';
 import type { CategoryDto } from '../../models/category';
@@ -14,126 +17,117 @@ import CategoryDetailsDialog from './CategoryDetailsDialog';
 
 type CategoryRow = CategoryDto & { attributesCount: number };
 
-function hasRow(x: unknown): x is { row: CategoryRow } {
-  return typeof x === 'object' && x !== null && 'row' in x;
-}
-
-function normalizeNameFilterModel(model: GridFilterModel): GridFilterModel {
-  const nameItem = model.items.find((item) => item.field === 'name');
-
-  if (!nameItem || typeof nameItem.value !== 'string' || nameItem.value.trim() === '') {
-    return { ...model, items: [] };
-  }
-
-  const normalizedItem: GridFilterItem = {
-    id: nameItem.id ?? 1,
-    field: 'name',
-    operator: 'contains',
-    value: nameItem.value,
-  };
-
-  return { ...model, items: [normalizedItem] };
+function getFilterParam(filters: MRT_ColumnFiltersState, field: string) {
+  const f = filters.find((f) => f.id === field);
+  return typeof f?.value === 'string' && f.value.trim() ? f.value.trim() : undefined;
 }
 
 export default function CategoriesPage() {
-  const [items, setItems] = useState<CategoryDto[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
-    page: 0,
-    pageSize: 25,
-  });
-  const [filterModel, setFilterModel] = useState<GridFilterModel>({ items: [] });
-  const [appliedNameFilter, setAppliedNameFilter] = useState('');
-  const [openForm, setOpenForm] = useState(false);
+  // data and fetching state
+  const [data, setData] = useState<CategoryRow[]>([]);
+  const [isError, setIsError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefetching, setIsRefetching] = useState(false);
+  const [rowCount, setRowCount] = useState(0);
 
+  // table state
+  const [columnFilters, setColumnFilters] = useState<MRT_ColumnFiltersState>([]);
+  const [appliedFilters, setAppliedFilters] = useState<MRT_ColumnFiltersState>([]);
+  const [pagination, setPagination] = useState<MRT_PaginationState>({ pageIndex: 0, pageSize: 25 });
+
+  // dialogs
+  const [openForm, setOpenForm] = useState(false);
   const [selectedDetails, setSelectedDetails] = useState<CategoryDetailsDto | null>(null);
   const [openDetails, setOpenDetails] = useState(false);
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      const nameFilterItem = filterModel.items.find((item) => item.field === 'name');
-      const nextFilter = typeof nameFilterItem?.value === 'string' ? nameFilterItem.value.trim() : '';
-      setAppliedNameFilter(nextFilter);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setAppliedFilters(columnFilters);
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     }, 300);
-
     return () => {
-      window.clearTimeout(timeoutId);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [filterModel]);
+  }, [columnFilters]);
 
   useEffect(() => {
-    let ignore = false;
+    const fetchData = async () => {
+      if (!data.length) {
+        setIsLoading(true);
+      } else {
+        setIsRefetching(true);
+      }
 
-    async function fetchList() {
-      setLoading(true);
       try {
         const res = await CategoriesApi.getPaged(
-          paginationModel.page + 1,
-          paginationModel.pageSize,
-          appliedNameFilter || undefined,
+          pagination.pageIndex + 1,
+          pagination.pageSize,
+          getFilterParam(appliedFilters, 'name'),
         );
-        if (!ignore) {
-          setItems(res.data.items);
-          setTotal(res.data.total ?? 0);
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
+        setData(res.data.items.map((c) => ({ ...c, attributesCount: c.attributes?.length ?? 0 })));
+        setRowCount(res.data.total ?? 0);
+      } catch {
+        setIsError(true);
+        return;
       }
-    }
 
-    void fetchList();
-
-    return () => {
-      ignore = true;
+      setIsError(false);
+      setIsLoading(false);
+      setIsRefetching(false);
     };
-  }, [appliedNameFilter, paginationModel.page, paginationModel.pageSize]);
 
-  const reload = async () => {
-    const res = await CategoriesApi.getPaged(
-      paginationModel.page + 1,
-      paginationModel.pageSize,
-      appliedNameFilter || undefined,
-    );
-    setItems(res.data.items);
-    setTotal(res.data.total ?? 0);
-  };
+    void fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedFilters, pagination.pageIndex, pagination.pageSize]);
 
-  const rows: CategoryRow[] = useMemo(
-    () =>
-      items.map((c) => ({
-        ...c,
-        attributesCount: c.attributes?.length ?? 0,
-      })),
-    [items],
+  const reload = () => setAppliedFilters((prev) => [...prev]);
+
+  const columns = useMemo<MRT_ColumnDef<CategoryRow>[]>(
+    () => [
+      { accessorKey: 'name', header: 'Наименование' },
+      { accessorKey: 'attributesCount', header: 'Кол-во атрибутов', enableColumnFilter: false },
+    ],
+    [],
   );
 
-  const columns: GridColDef[] = [
-    {
-      field: 'name',
-      headerName: 'Название',
-      flex: 1,
-      filterOperators: getGridStringOperators().filter((operator) => operator.value === 'contains'),
+  const table = useMaterialReactTable({
+    columns,
+    data,
+    getRowId: (row) => row.id,
+    initialState: { showColumnFilters: true },
+    manualFiltering: true,
+    manualPagination: true,
+    muiToolbarAlertBannerProps: isError
+      ? { color: 'error', children: 'Ошибка загрузки данных' }
+      : undefined,
+    onColumnFiltersChange: setColumnFilters,
+    onPaginationChange: setPagination,
+    rowCount,
+    state: {
+      columnFilters,
+      isLoading,
+      pagination,
+      showAlertBanner: isError,
+      showProgressBars: isRefetching,
     },
-    {
-      field: 'attributesCount',
-      headerName: 'Кол-во атрибутов',
-      flex: 1,
-      filterable: false,
-    },
-  ];
-
-  const handleRowDoubleClick = async (params: unknown) => {
-    if (!hasRow(params)) return;
-
-    const id = params.row.id;
-    const res = await CategoriesApi.getDetails(id);
-
-    setSelectedDetails(res.data);
-    setOpenDetails(true);
-  };
+    enableGlobalFilter: false,
+    enableSorting: false,
+    enableColumnActions: false,
+    columnFilterDisplayMode: 'subheader',
+    muiPaginationProps: { rowsPerPageOptions: [25, 50, 100] },
+    localization: { rowsPerPage: 'Строк:' },
+    muiTableBodyRowProps: ({ row }) => ({
+      onDoubleClick: async () => {
+        const res = await CategoriesApi.getDetails(row.id);
+        setSelectedDetails(res.data);
+        setOpenDetails(true);
+      },
+      sx: { cursor: 'pointer' },
+    }),
+  });
 
   return (
     <Box p={2}>
@@ -141,27 +135,8 @@ export default function CategoriesPage() {
         Создать
       </Button>
 
-      <Box mt={2} sx={{ height: 500 }}>
-        <DataGrid<CategoryRow>
-          rows={rows}
-          columns={columns}
-          getRowId={(r) => r.id}
-          loading={loading}
-          pagination
-          paginationMode="server"
-          filterMode="server"
-          filterModel={filterModel}
-          onFilterModelChange={(nextModel) => {
-            const normalizedModel = normalizeNameFilterModel(nextModel);
-            setFilterModel(normalizedModel);
-            setPaginationModel((prev) => (prev.page === 0 ? prev : { ...prev, page: 0 }));
-          }}
-          rowCount={total}
-          pageSizeOptions={[25, 50, 100]}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          onRowDoubleClick={handleRowDoubleClick}
-        />
+      <Box mt={2}>
+        <MaterialReactTable table={table} />
       </Box>
 
       <CategoryForm open={openForm} onClose={() => setOpenForm(false)} onSaved={reload} />

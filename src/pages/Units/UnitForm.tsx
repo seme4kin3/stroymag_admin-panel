@@ -5,9 +5,11 @@ import {
   DialogActions,
   TextField,
   Button,
+  Alert,
 } from '@mui/material';
 import { useState } from 'react';
 import { UnitsApi } from '../../api/units.api';
+import { parseApiError } from '../../utils/apiError';
 
 interface UnitFormProps {
   open: boolean;
@@ -18,18 +20,25 @@ interface UnitFormProps {
 export default function UnitForm({ open, onClose, onSaved }: UnitFormProps) {
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSave = async () => {
-    await UnitsApi.create({ name, symbol });
-    setName('');
-    setSymbol('');
-    await onSaved();
-    onClose();
+    try {
+      await UnitsApi.create({ name, symbol });
+      setName('');
+      setSymbol('');
+      setErrorMsg(null);
+      await onSaved();
+      onClose();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const handleClose = () => {
     setName('');
     setSymbol('');
+    setErrorMsg(null);
     onClose();
   };
 
@@ -53,6 +62,7 @@ export default function UnitForm({ open, onClose, onSaved }: UnitFormProps) {
           value={symbol}
           onChange={(e) => setSymbol(e.target.value)}
         />
+        {errorMsg && <Alert severity="error" sx={{ mt: 1 }}>{errorMsg}</Alert>}
       </DialogContent>
 
       <DialogActions>

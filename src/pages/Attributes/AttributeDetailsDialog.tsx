@@ -13,6 +13,7 @@ import {
   MenuItem,
   Checkbox,
   FormControlLabel,
+  Alert,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useState } from 'react';
@@ -20,6 +21,7 @@ import { useState } from 'react';
 import { AttributesApi } from '../../api/attributes.api';
 import type { AttributeDto, AttributeDataType } from '../../models/attribute';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { parseApiError } from '../../utils/apiError';
 
 interface AttributeDetailsDialogProps {
   open: boolean;
@@ -47,6 +49,7 @@ export default function AttributeDetailsDialog({
   const [draftKey, setDraftKey] = useState('');
   const [draftDataType, setDraftDataType] = useState<AttributeDataType>(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!attribute) return null;
 
@@ -54,21 +57,28 @@ export default function AttributeDetailsDialog({
     setDraftName(attribute.name);
     setDraftKey(attribute.key);
     setDraftDataType(attribute.dataType);
+    setErrorMsg(null);
     setIsEditing(true);
   };
 
   const handleCancelEdit = () => {
+    setErrorMsg(null);
     setIsEditing(false);
   };
 
   const handleSave = async () => {
-    await AttributesApi.update(attribute.id, {
-      name: draftName,
-      key: draftKey,
-      dataType: draftDataType,
-    });
-    setIsEditing(false);
-    await onChanged();
+    try {
+      await AttributesApi.update(attribute.id, {
+        name: draftName,
+        key: draftKey,
+        dataType: draftDataType,
+      });
+      setIsEditing(false);
+      setErrorMsg(null);
+      await onChanged();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const handleDeleteClick = () => {
@@ -77,13 +87,18 @@ export default function AttributeDetailsDialog({
 
   const handleConfirmDelete = async () => {
     setConfirmOpen(false);
-    await AttributesApi.delete(attribute.id);
-    await onChanged();
-    onClose();
+    try {
+      await AttributesApi.delete(attribute.id);
+      await onChanged();
+      onClose();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const handleClose = () => {
     setIsEditing(false);
+    setErrorMsg(null);
     onClose();
   };
 
@@ -148,6 +163,7 @@ export default function AttributeDetailsDialog({
               label="Активен"
             />
           </Stack>
+          {errorMsg && <Alert severity="error" sx={{ mt: 2 }}>{errorMsg}</Alert>}
         </DialogContent>
 
         <DialogActions>

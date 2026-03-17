@@ -9,10 +9,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Alert,
 } from '@mui/material';
 import { useState } from 'react';
 import { AttributesApi } from '../../api/attributes.api';
 import type { AttributeDataType } from '../../models/attribute';
+import { parseApiError } from '../../utils/apiError';
 
 interface AttributeFormProps {
   open: boolean;
@@ -31,23 +33,25 @@ const dataTypeOptions: { value: AttributeDataType; label: string }[] = [
 export default function AttributeForm({ open, onClose, onSaved }: AttributeFormProps) {
   const [name, setName] = useState('');
   const [dataType, setDataType] = useState<AttributeDataType>(0);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSave = async () => {
-    await AttributesApi.create({
-      name,
-      dataType, // отправляем число 0..3
-    });
-
-    setName('');
-    setDataType(0);
-
-    await onSaved();
-    onClose();
+    try {
+      await AttributesApi.create({ name, dataType });
+      setName('');
+      setDataType(0);
+      setErrorMsg(null);
+      await onSaved();
+      onClose();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const handleClose = () => {
     setName('');
     setDataType(0);
+    setErrorMsg(null);
     onClose();
   };
 
@@ -78,6 +82,7 @@ export default function AttributeForm({ open, onClose, onSaved }: AttributeFormP
             ))}
           </Select>
         </FormControl>
+        {errorMsg && <Alert severity="error" sx={{ mt: 1 }}>{errorMsg}</Alert>}
       </DialogContent>
 
       <DialogActions>

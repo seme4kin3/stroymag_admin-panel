@@ -13,6 +13,7 @@ import {
   Checkbox,
   FormControlLabel,
   Tooltip,
+  Alert,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
@@ -23,6 +24,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { CategoriesApi } from '../../api/categories.api';
+import { parseApiError } from '../../utils/apiError';
 
 import type { CategoryDetailsDto, CategoryAttributeDto } from '../../models/categoryDetails';
 import type { CategoryAttributeRequest, CreateCategory, CategoryDto } from '../../models/category';
@@ -90,6 +92,7 @@ export default function CategoryDetailsDialog({
 }: CategoryDetailsDialogProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [draftName, setDraftName] = useState('');
   const [draftSlug, setDraftSlug] = useState('');
@@ -195,6 +198,7 @@ export default function CategoryDetailsDialog({
     setParentDialogOpen(false);
     setSelectAttrRowId(null);
     setSelectUnitRowId(null);
+    setErrorMsg(null);
     resetImageDraft();
   };
 
@@ -203,6 +207,7 @@ export default function CategoryDetailsDialog({
     setParentDialogOpen(false);
     setSelectAttrRowId(null);
     setSelectUnitRowId(null);
+    setErrorMsg(null);
     resetImageDraft();
     setImageViewerOpen(false);
     onClose();
@@ -300,7 +305,12 @@ export default function CategoryDetailsDialog({
       attributes: ownReq,
     };
 
-    await CategoriesApi.update(viewDetails.id, payload);
+    try {
+      await CategoriesApi.update(viewDetails.id, payload);
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+      return;
+    }
 
     // применяем изменения картинки только при сохранении
     if (pendingRemoveImage) {
@@ -322,6 +332,7 @@ export default function CategoryDetailsDialog({
     }
 
     setIsEditing(false);
+    setErrorMsg(null);
     resetImageDraft();
     await refreshDetails();
     await onChanged();
@@ -331,9 +342,13 @@ export default function CategoryDetailsDialog({
 
   const handleConfirmDelete = async () => {
     setConfirmOpen(false);
-    await CategoriesApi.delete(viewDetails.id);
-    await onChanged();
-    onClose();
+    try {
+      await CategoriesApi.delete(viewDetails.id);
+      await onChanged();
+      onClose();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const renderReadOnlyAttrRow = (attrName: string, unitSymbol: string) => (
@@ -660,6 +675,7 @@ export default function CategoryDetailsDialog({
               </Button>
             </>
           )}
+          {errorMsg && <Alert severity="error" sx={{ mt: 2 }}>{errorMsg}</Alert>}
         </DialogContent>
 
         <DialogActions>

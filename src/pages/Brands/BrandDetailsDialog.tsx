@@ -7,12 +7,14 @@ import {
   Button,
   Stack,
   IconButton,
+  Alert,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useState } from 'react';
 import { BrandsApi } from '../../api/brands.api';
 import type { Brand } from '../../models/brand';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { parseApiError } from '../../utils/apiError';
 
 interface BrandDetailsDialogProps {
   open: boolean;
@@ -30,22 +32,30 @@ export default function BrandDetailsDialog({
   const [isEditing, setIsEditing] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!brand) return null;
 
   const handleStartEdit = () => {
     setDraftName(brand.name);
+    setErrorMsg(null);
     setIsEditing(true);
   };
 
   const handleCancelEdit = () => {
+    setErrorMsg(null);
     setIsEditing(false);
   };
 
   const handleSave = async () => {
-    await BrandsApi.update(brand.id, { name: draftName });
-    setIsEditing(false);
-    await onChanged();
+    try {
+      await BrandsApi.update(brand.id, { name: draftName });
+      setIsEditing(false);
+      setErrorMsg(null);
+      await onChanged();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const handleDeleteClick = () => {
@@ -54,13 +64,18 @@ export default function BrandDetailsDialog({
 
   const handleConfirmDelete = async () => {
     setConfirmOpen(false);
-    await BrandsApi.delete(brand.id);
-    await onChanged();
-    onClose();
+    try {
+      await BrandsApi.delete(brand.id);
+      await onChanged();
+      onClose();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const handleClose = () => {
     setIsEditing(false);
+    setErrorMsg(null);
     onClose();
   };
 
@@ -91,6 +106,7 @@ export default function BrandDetailsDialog({
               disabled={!isEditing}
             />
           </Stack>
+          {errorMsg && <Alert severity="error" sx={{ mt: 2 }}>{errorMsg}</Alert>}
         </DialogContent>
 
         <DialogActions>

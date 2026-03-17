@@ -5,9 +5,11 @@ import {
   DialogActions,
   TextField,
   Button,
+  Alert,
 } from '@mui/material';
 import { useState } from 'react';
 import { BrandsApi } from '../../api/brands.api';
+import { parseApiError } from '../../utils/apiError';
 
 interface BrandFormProps {
   open: boolean;
@@ -17,16 +19,23 @@ interface BrandFormProps {
 
 export default function BrandForm({ open, onClose, onSaved }: BrandFormProps) {
   const [name, setName] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSave = async () => {
-    await BrandsApi.create({ name });
-    setName('');
-    onSaved();
-    onClose();
+    try {
+      await BrandsApi.create({ name });
+      setName('');
+      setErrorMsg(null);
+      onSaved();
+      onClose();
+    } catch (err) {
+      setErrorMsg(parseApiError(err));
+    }
   };
 
   const handleClose = () => {
     setName('');
+    setErrorMsg(null);
     onClose();
   };
 
@@ -42,6 +51,7 @@ export default function BrandForm({ open, onClose, onSaved }: BrandFormProps) {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
+        {errorMsg && <Alert severity="error" sx={{ mt: 1 }}>{errorMsg}</Alert>}
       </DialogContent>
 
       <DialogActions>
